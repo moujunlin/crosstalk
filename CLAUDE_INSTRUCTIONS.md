@@ -2,7 +2,7 @@
 # Crosstalk — Instructions for Claude (via Supabase MCP)
 
 ## Project Info
-- Supabase Project ID: `jceihzewnpjlpsjpbemb`
+- Supabase Project ID: `YOUR_PROJECT_ID
 - Use `Supabase:execute_sql` tool to read/write
 
 ## Tables
