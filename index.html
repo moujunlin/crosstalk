@@ -338,7 +338,8 @@ async function api(path, method = "GET", body = null) {
   if (body) opts.body = JSON.stringify(body);
   const res = await fetch(`${API}${path}`, opts);
   if (!res.ok) throw new Error(`${res.status}`);
-  return res.json();
+  const json = await res.json();
+  return json._context !== undefined ? json.data : json;
 }
 
 // ─── Constants ──────────────────────────────────────────────────────────

@@ -7,28 +7,48 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "GET, POST, PATCH, OPTIONS",
 };
 
-const supabase = createClient(
-  Deno.env.get("SUPABASE_URL")!,
-  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-);
+async function getContext(sb: any) {
+  try {
+    const { data } = await sb.rpc("get_context");
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+function respond(data: unknown, ctx: unknown, status = 200) {
+  const body = ctx != null ? { data, _context: ctx } : data;
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+function errJson(msg: string, status = 500) {
+  return new Response(JSON.stringify({ error: msg }), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const supabase = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+  );
+
+  const ctx = await getContext(supabase);
   const url = new URL(req.url);
   const path = url.pathname.replace("/crosstalk-api", "");
 
   try {
-    // GET /search?q=artist+song — search iTunes for cover art and link
     if (req.method === "GET" && path === "/search") {
       const q = url.searchParams.get("q") || "";
-      if (!q)
-        return new Response(JSON.stringify({ error: "Missing q param" }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+      if (!q) return errJson("Missing q", 400);
       const itunesRes = await fetch(
         `https://itunes.apple.com/search?term=${encodeURIComponent(q)}&entity=song&limit=3`
       );
@@ -41,36 +61,27 @@ Deno.serve(async (req: Request) => {
         link: r.trackViewUrl || "",
         previewUrl: r.previewUrl || "",
       }));
-      return new Response(JSON.stringify(results), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return respond(results, ctx);
     }
 
-    // GET /pairs
     if (req.method === "GET" && path === "/pairs") {
       const { data, error } = await supabase
         .from("crosstalk_pairs")
         .select("*")
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return new Response(JSON.stringify(data), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return respond(data, ctx);
     }
 
-    // GET /comments
     if (req.method === "GET" && path === "/comments") {
       const { data, error } = await supabase
         .from("crosstalk_comments")
         .select("*")
         .order("created_at", { ascending: true });
       if (error) throw error;
-      return new Response(JSON.stringify(data), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return respond(data, ctx);
     }
 
-    // GET /settings
     if (req.method === "GET" && path === "/settings") {
       const { data, error } = await supabase
         .from("crosstalk_settings")
@@ -78,12 +89,9 @@ Deno.serve(async (req: Request) => {
         .eq("id", 1)
         .single();
       if (error) throw error;
-      return new Response(JSON.stringify(data), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return respond(data, ctx);
     }
 
-    // POST /pairs
     if (req.method === "POST" && path === "/pairs") {
       const body = await req.json();
       const { data, error } = await supabase
@@ -92,12 +100,9 @@ Deno.serve(async (req: Request) => {
         .select()
         .single();
       if (error) throw error;
-      return new Response(JSON.stringify(data), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return respond(data, ctx);
     }
 
-    // PATCH /pairs/:id
     if (req.method === "PATCH" && path.startsWith("/pairs/")) {
       const id = path.split("/")[2];
       const body = await req.json();
@@ -108,12 +113,9 @@ Deno.serve(async (req: Request) => {
         .select()
         .single();
       if (error) throw error;
-      return new Response(JSON.stringify(data), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return respond(data, ctx);
     }
 
-    // POST /comments
     if (req.method === "POST" && path === "/comments") {
       const body = await req.json();
       const { data, error } = await supabase
@@ -122,12 +124,9 @@ Deno.serve(async (req: Request) => {
         .select()
         .single();
       if (error) throw error;
-      return new Response(JSON.stringify(data), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return respond(data, ctx);
     }
 
-    // PATCH /settings
     if (req.method === "PATCH" && path === "/settings") {
       const body = await req.json();
       const { data, error } = await supabase
@@ -137,19 +136,11 @@ Deno.serve(async (req: Request) => {
         .select()
         .single();
       if (error) throw error;
-      return new Response(JSON.stringify(data), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return respond(data, ctx);
     }
 
-    return new Response(JSON.stringify({ error: "Not found" }), {
-      status: 404,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return errJson("Not found", 404);
   } catch (e) {
-    return new Response(JSON.stringify({ error: e.message }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return errJson(e.message);
   }
 });
