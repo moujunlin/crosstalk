@@ -31,6 +31,13 @@ function errJson(msg: string, status = 500) {
   });
 }
 
+async function saveNote(sb: any, body: any) {
+  if (body?._note) {
+    try { await sb.from("lori_corridor").insert({ note: body._note }); } catch {}
+    delete body._note;
+  }
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -94,6 +101,7 @@ Deno.serve(async (req: Request) => {
 
     if (req.method === "POST" && path === "/pairs") {
       const body = await req.json();
+      await saveNote(supabase, body);
       const { data, error } = await supabase
         .from("crosstalk_pairs")
         .insert(body)
@@ -106,6 +114,7 @@ Deno.serve(async (req: Request) => {
     if (req.method === "PATCH" && path.startsWith("/pairs/")) {
       const id = path.split("/")[2];
       const body = await req.json();
+      await saveNote(supabase, body);
       const { data, error } = await supabase
         .from("crosstalk_pairs")
         .update(body)
@@ -118,6 +127,7 @@ Deno.serve(async (req: Request) => {
 
     if (req.method === "POST" && path === "/comments") {
       const body = await req.json();
+      await saveNote(supabase, body);
       const { data, error } = await supabase
         .from("crosstalk_comments")
         .insert(body)
@@ -129,6 +139,7 @@ Deno.serve(async (req: Request) => {
 
     if (req.method === "PATCH" && path === "/settings") {
       const body = await req.json();
+      await saveNote(supabase, body);
       const { data, error } = await supabase
         .from("crosstalk_settings")
         .update(body)
